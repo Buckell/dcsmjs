@@ -12,10 +12,10 @@
   "dependencies": {
     "@serialport/binding-mock": "^10.2.2",
     "@serialport/stream": "^12.0.0",
-    "sacn": "^4.4.0",
     "serialport": "^12.0.0"
   },
   "devDependencies": {
+    "sacn": "^4.4.0",
     "@types/node": "^20.12.5"
   }
 }
