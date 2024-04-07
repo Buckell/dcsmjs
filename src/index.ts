@@ -22,7 +22,6 @@ connectDevices().then((devices : Device[]) => {
 
         device.setAddressValues([
             {
-
                 address: {
                     universe: 1,
                     address: 3
