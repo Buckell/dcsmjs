@@ -98,10 +98,10 @@ export class Device {
     }
 
     private sendMessageHeader(opcode : number, length : number) {
-        const header = Buffer.alloc(5);
-        header.writeUint8(0x00, 0);
-        header.writeUint16LE(opcode, 1);
-        header.writeUint16LE(length, 3);
+        const header = Buffer.allocUnsafe(5);
+        header.writeUInt8(0x00, 0);
+        header.writeUInt16LE(opcode, 1);
+        header.writeUInt16LE(length, 3);
 
         this.port?.write(header);
     }
@@ -169,22 +169,22 @@ export class Device {
     setUniverseData(universe : number, data : Buffer = Buffer.alloc(512, 0x00)) {
         this.clearResponse();
 
-        const bodyUniverse = Buffer.alloc(2);
-        bodyUniverse.writeUint16LE(universe, 0);
+        const bodyUniverse = Buffer.allocUnsafe(2);
+        bodyUniverse.writeUInt16LE(universe, 0);
 
         this.sendMessage(0x0002, Buffer.concat([ bodyUniverse, data ]));
     }
 
     setAddressValues(pairs : AddressValuePair[]) {
-        const body = Buffer.alloc(pairs.length * 5);
+        const body = Buffer.allocUnsafe(pairs.length * 5);
 
         for (let i = 0; i < pairs.length; ++i) {
             const pair = pairs[i];
             const offset = i * 5;
 
-            body.writeUint16LE(pair.address.universe, offset);
-            body.writeUint16LE(pair.address.address,  offset + 2);
-            body.writeUint8   (pair.value,            offset + 4);
+            body.writeUInt16LE(pair.address.universe, offset);
+            body.writeUInt16LE(pair.address.address,  offset + 2);
+            body.writeUInt8   (pair.value,            offset + 4);
         }
 
         this.clearResponse();
@@ -202,8 +202,8 @@ export class Device {
                 }
             });
 
-            const body = Buffer.alloc(2);
-            body.writeUint16LE(universe, 0);
+            const body = Buffer.allocUnsafe(2);
+            body.writeUInt16LE(universe, 0);
 
             this.sendMessage(0x0004, body);
         }), timeout);
