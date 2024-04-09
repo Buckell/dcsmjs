@@ -98,6 +98,38 @@ export type AddressValuePair = {
     value   : number;
 }
 
+export type LocalMaskAddressValuePair = {
+    address : number;
+    masking : boolean;
+    value   : number;
+}
+
+export type MaskUniverseData = {
+    mask : BitSet;
+    data : Buffer;
+}
+
+export type Patch = {
+    inputUniverse  : number;
+    outputUniverse : number;
+    maskUniverse   : number;
+}
+
+export type MaskValue = {
+    value   : number;
+    masking : boolean;
+}
+
+enum PortType {
+    Output = 0x00,
+    Input  = 0x01
+}
+
+export type Port = {
+    universe : number;
+    mode     : PortType;
+}
+
 export type DataCallback = (data : Buffer) => void;
 
 export class Device {
@@ -258,6 +290,282 @@ export class Device {
             body.writeUInt16LE(universe, 0);
 
             this.sendMessage(0x0004, body);
+        }), timeout);
+    }
+
+    setFramerate(framerate : number) {
+        const body = Buffer.allocUnsafe(1);
+        body.writeUInt8(framerate, 0);
+
+        this.sendMessage(0x0005, body);
+    }
+
+    getFramerate(timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise((resolve) => {
+            this.clearResponse();
+
+            this.onData((data) => {
+                if (data.length >= 1) {
+                    resolve(data.readUInt8(0));
+                }
+            });
+
+            this.sendMessage(0x0006);
+        }), timeout);
+    }
+
+    createMaskUniverse(universe : number) {
+        const body = Buffer.allocUnsafe(2);
+        body.writeUInt16LE(universe, 0);
+
+        this.sendMessage(0x0007, body);
+    }
+
+    getMaskUniverses(timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<number[]>((resolve) => {
+            this.clearResponse();
+
+            let universeCount = 0;
+
+            this.onData((data) => {
+                if (data.length >= 2) {
+                    universeCount = data.readUInt16LE(0);
+                }
+
+                if (data.length >= 2 + (universeCount * 2)) {
+                    const universes : number[] = [];
+
+                    for (let i = 0; i < universeCount; ++i) {
+                        const offset = 2 + i * 2;
+
+                        universes.push(data.readUInt16LE(offset));
+                    }
+
+                    resolve(universes);
+                }
+            });
+
+            this.sendMessage(0x0008);
+        }), timeout);
+    }
+
+    deleteMaskUniverse(universe : number) {
+        const body = Buffer.allocUnsafe(2);
+        body.writeUInt16LE(universe, 0);
+
+        this.sendMessage(0x0009, body);
+    }
+
+    setMaskUniverseData(universe : number, data : MaskUniverseData) {
+        const body = data.data.length === 512 ? Buffer.allocUnsafe(2 + 64 + 512) : Buffer.alloc(2 + 64 + 512);
+        body.writeUInt16LE(universe, 0);
+        bitsetToBuffer(body, data.mask, 64, 2);
+        data.data.copy(body, 2 + 64);
+
+        this.sendMessage(0x000A, body);
+    }
+
+    setMaskAddressValues(universe : number, pairs : LocalMaskAddressValuePair[]) {
+        const body = Buffer.allocUnsafe(2 + (pairs.length * 4));
+        body.writeUInt16LE(universe, 0);
+
+        pairs.forEach((pair : LocalMaskAddressValuePair, index : number) => {
+            const offset = 2 + (index * 4);
+
+            body.writeUInt16LE(pair.address, offset);
+            body.writeUInt8(pair.masking ? 1 : 0, offset + 2);
+            body.writeUInt8(pair.value, offset + 3);
+        });
+
+        this.sendMessage(0x000B, body);
+    }
+
+    getMaskUniverseData(universe : number, timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<MaskUniverseData>((resolve) => {
+            this.clearResponse();
+
+            this.onData((data) => {
+                if (data.length >= 64 + 512) {
+                    resolve({
+                        mask: bufferToBitset(data, 64),
+                        data: data.subarray(64, 64 + 512)
+                    });
+                }
+            });
+
+            const body = Buffer.allocUnsafe(2);
+            body.writeUInt16LE(universe, 0);
+
+            this.sendMessage(0x000C, body);
+        }), timeout);
+    }
+
+    clearMaskUniverse(universe : number) {
+        const body = Buffer.allocUnsafe(2);
+        body.writeUInt16LE(universe, 0);
+
+        this.sendMessage(0x000D, body);
+    }
+
+    patch(patch : Patch) {
+        const body = Buffer.allocUnsafe(6);
+        body.writeUInt16LE(patch.inputUniverse,  0);
+        body.writeUInt16LE(patch.outputUniverse, 2);
+        body.writeUInt16LE(patch.maskUniverse,   4);
+
+        this.sendMessage(0x000E, body);
+    }
+
+    unpatch(outputUniverse : number) {
+        const body = Buffer.allocUnsafe(2);
+        body.writeUInt16LE(outputUniverse, 0);
+
+        this.sendMessage(0x000F, body);
+    }
+
+    getPatches(timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<Patch[]>((resolve) => {
+            this.clearResponse();
+
+            let patchCount = 0;
+
+            this.onData((data) => {
+                if (data.length >= 2) {
+                    patchCount = data.readUInt16LE(0);
+                }
+
+                if (data.length >= 2 + (patchCount * 6)) {
+                    const patches : Patch[] = [];
+
+                    for (let i = 0; i < patchCount; ++i) {
+                        const offset = 2 + i * 6;
+
+                        patches.push({
+                            outputUniverse: data.readUInt16LE(offset),
+                            inputUniverse: data.readUInt16LE(offset + 2),
+                            maskUniverse: data.readUInt16LE(offset + 4)
+                        });
+                    }
+
+                    resolve(patches);
+                }
+            });
+
+            this.sendMessage(0x0010);
+        }), timeout);
+    }
+
+    copyUniverse(sourceUniverse : number, destinationUniverse : number) {
+        const body = Buffer.allocUnsafe(4);
+        body.writeUInt16LE(sourceUniverse,  0);
+        body.writeUInt16LE(destinationUniverse, 2);
+
+        this.sendMessage(0x0011, body);
+    }
+
+    setAddressesToValue(universe : number, value : number, mask : ReadOnlyBitSet) {
+        const body = Buffer.allocUnsafe(2 + 1 + 64);
+        body.writeUInt16LE(universe, 0);
+        body.writeUInt8(value, 2);
+        bitsetToBuffer(body, mask, 64, 3);
+
+        this.sendMessage(0x0012, body);
+    }
+
+    setMaskAddressesToValue(universe : number, value : number, mask : ReadOnlyBitSet) {
+        const body = Buffer.allocUnsafe(2 + 1 + 64);
+        body.writeUInt16LE(universe, 0);
+        body.writeUInt8(value, 2);
+        bitsetToBuffer(body, mask, 64, 3);
+
+        this.sendMessage(0x0012, body);
+    }
+
+    listPorts(timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<Port[]>((resolve) => {
+            this.clearResponse();
+
+            let portCount = 0;
+
+            this.onData((data) => {
+                if (data.length >= 2) {
+                    portCount = data.readUInt16LE(0);
+                }
+
+                if (data.length >= 2 + (portCount * 3)) {
+                    const ports : Port[] = [];
+
+                    for (let i = 0; i < portCount; ++i) {
+                        const offset = 2 + i * 3;
+
+                        ports.push({
+                            universe: data.readUInt16LE(offset),
+                            mode: data.readUInt8(offset + 2)
+                        });
+                    }
+
+                    resolve(ports);
+                }
+            });
+
+            this.sendMessage(0x0010);
+        }), timeout);
+    }
+
+    getValuesByAddress(addresses : AddressPack[], timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<number[]>((resolve) => {
+            this.clearResponse();
+
+            this.onData((data) => {
+                if (data.length >= addresses.length) {
+                    resolve(Array.from<number>(data));
+                }
+            });
+
+            const body = Buffer.allocUnsafe(addresses.length * 4);
+
+            addresses.forEach((address, index) => {
+                const offset = index * 4;
+
+                body.writeUInt16LE(address.universe, offset);
+                body.writeUInt16LE(address.address, offset + 2);
+            });
+
+            this.sendMessage(0x0010);
+        }), timeout);
+    }
+
+    getMaskValuesByAddress(addresses : AddressPack[], timeout : number = Device.DEFAULT_TIMEOUT) {
+        return functionTimeout(new Promise<MaskValue[]>((resolve) => {
+            this.clearResponse();
+
+            this.onData((data) => {
+                if (data.length >= addresses.length * 2) {
+                    const values : MaskValue[] = [];
+
+                    for (let i = 0; i < addresses.length; ++i) {
+                        const offset = i * 2;
+
+                        values.push({
+                            value: data.readUInt8(offset),
+                            masking: data.readUInt8(offset + 1) > 0
+                        });
+                    }
+
+                    resolve(values);
+                }
+            });
+
+            const body = Buffer.allocUnsafe(addresses.length * 4);
+
+            addresses.forEach((address, index) => {
+                const offset = index * 4;
+
+                body.writeUInt16LE(address.universe, offset);
+                body.writeUInt16LE(address.address, offset + 2);
+            });
+
+            this.sendMessage(0x0010);
         }), timeout);
     }
 }
