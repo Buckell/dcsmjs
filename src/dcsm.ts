@@ -1,4 +1,56 @@
 import {SerialPort} from "serialport";
+import {BitSet, ReadOnlyBitSet} from "bitset";
+
+const bitsetToBuffer = (destination : Buffer, source : ReadOnlyBitSet, byteCount : number, offset : number = 0) => {
+    if (offset + byteCount > destination.length) {
+        throw "buffer overflow";
+    }
+
+    for (let i = 0; i < byteCount; ++i) {
+        const bitsetOffset = i * 8;
+        const bufferOffset = offset + i;
+
+        destination.writeUInt8(
+            0
+            | (source.get(bitsetOffset) * 0b10000000)
+            | (source.get(bitsetOffset + 1) * 0b01000000)
+            | (source.get(bitsetOffset + 2) * 0b00100000)
+            | (source.get(bitsetOffset + 3) * 0b00010000)
+            | (source.get(bitsetOffset + 4) * 0b00001000)
+            | (source.get(bitsetOffset + 5) * 0b00000100)
+            | (source.get(bitsetOffset + 6) * 0b00000010)
+            | (source.get(bitsetOffset + 7) * 0b00000001),
+            bufferOffset
+        );
+    }
+};
+
+const bufferToBitset = (source : Buffer, byteCount : number, offset : number = 0) : BitSet => {
+    if (offset + byteCount > source.length) {
+        throw "buffer overflow";
+    }
+
+    const set = new BitSet();
+
+    for (let i = 0; i < byteCount; ++i) {
+        const bitsetOffset = i * 8;
+        const bufferOffset = offset + i;
+
+        const byte = source.readUInt8(bufferOffset);
+
+        set.set(bitsetOffset, byte & 0b10000000);
+        set.set(bitsetOffset + 1, byte & 0b01000000);
+        set.set(bitsetOffset + 2, byte & 0b00100000);
+        set.set(bitsetOffset + 3, byte & 0b00010000);
+        set.set(bitsetOffset + 4, byte & 0b00001000);
+        set.set(bitsetOffset + 5, byte & 0b00000100);
+        set.set(bitsetOffset + 6, byte & 0b00000010);
+        set.set(bitsetOffset + 7, byte & 0b00000001);
+    }
+
+    return set;
+};
+
 export const listSerialPorts = () : Promise<string[]> => SerialPort.list()
     .then((ports) => ports.map((port) => port.path));
 
