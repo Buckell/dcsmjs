@@ -167,10 +167,6 @@ export class Device {
     setUniverseData(universe : number, data : Buffer = Buffer.alloc(512, 0x00)) {
         this.clearResponse();
 
-        this.onData((data) => {
-            console.log(String(data));
-        });
-
         const bodyUniverse = Buffer.alloc(2);
         bodyUniverse.writeUint16LE(universe, 0);
 
@@ -190,8 +186,6 @@ export class Device {
         }
 
         this.clearResponse();
-
-        this.onData((data) => console.log(String(data)));
 
         this.sendMessage(0x0003, body);
     }
