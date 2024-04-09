@@ -49,6 +49,8 @@ export type AddressValuePair = {
 export type DataCallback = (data : Buffer) => void;
 
 export class Device {
+    static DEFAULT_TIMEOUT = 1000;
+
     portPath     : string              = "";
     port         : SerialPort | null   = null;
     dcsmVersion  : string              = "";
@@ -63,7 +65,7 @@ export class Device {
         this.portPath = path;
     }
 
-    connect(timeout : number = 1000) : Promise<void> {
+    connect(timeout : number = Device.DEFAULT_TIMEOUT) : Promise<void> {
         return new Promise((resolve, reject) => {
             this.port = new SerialPort({
                 path: this.portPath,
@@ -137,7 +139,7 @@ export class Device {
         this.dataCallback = callback;
     }
 
-    identify(timeout = 500) {
+    identify(timeout = Device.DEFAULT_TIMEOUT) {
         return functionTimeout(new Promise((resolve, reject) => {
             this.clearResponse();
 
@@ -190,7 +192,7 @@ export class Device {
         this.sendMessage(0x0003, body);
     }
 
-    getUniverseData(universe : number, timeout = 1000) {
+    getUniverseData(universe : number, timeout = Device.DEFAULT_TIMEOUT) {
         return functionTimeout(new Promise((resolve) => {
             this.clearResponse();
 
